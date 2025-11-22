@@ -5,7 +5,6 @@
   "homeUrl": "https://evm-tracker-mauve.vercel.app/",
   "imageUrl": "https://evm-tracker-mauve.vercel.app/og_image.png",
   "description": "Check transaction volume across EVM chains instantly.",
-  "webhookUrl": "https://evm-tracker-mauve.vercel.app/api/webhook",
   "frames": {
     "version": "1",
     "imageUrl": "https://placehold.co/600x400/855DCD/ffffff?text=Start+Scan",
