@@ -14,10 +14,8 @@
     "splashImageUrl": "https://evm-tracker-mauve.vercel.app/splash.png",
     "splashBackgroundColor": "#6200EA",
     "webhookUrl": "https://evm-tracker-mauve.vercel.app/api/webhook",
-
     "subtitle": "Instant EVM Volume Tracking",
     "description": "EVM Volume Tracker instantly scans transaction volume across many EVM chains. Find your on-chain ranking as a whale, shark, or dolphin and analyze smart money movements.",
-
     "primaryCategory": "finance",
     "screenshotUrls": [
       "https://evm-tracker-mauve.vercel.app/screenshot1.png"
@@ -34,7 +32,6 @@
     "ogTitle": "EVM Volume Tracker",
     "ogDescription": "Track transaction volume on many EVM chains and see where you rank among whales and dolphins.",
     "ogImageUrl": "https://evm-tracker-mauve.vercel.app/og_image.png",
-
     "castShareUrl": "https://evm-tracker-mauve.vercel.app/share"
   }
 }
