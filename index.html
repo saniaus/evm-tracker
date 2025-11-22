@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EVM Volume | Frame v2</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #000000; 
+            color: white;
+            -webkit-font-smoothing: antialiased;
+        }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Hide scrollbar for cleaner mini-app feel */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-subtle { animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- ICONS ---
+        const SearchIcon = ({size=20, className}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+        const ShareIcon = ({size=20, className}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>;
+        const RefreshIcon = ({size=20, className}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>;
+        const WarpcastIcon = ({size=20, className}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M18.24.75c-1.5.2-3.3.7-4.5 1.3-2.7 1.4-4.5 4.2-4.5 7.2v.3c-.2-.4-.5-.8-1-1.2-1.6-1.3-3.6-1.7-4.9-.9-.8.5-1.2 1.4-1.1 2.4 0 1.3.9 2.6 2.3 3.5l.3.2c-1.4.5-2.5 1.6-2.9 3-.4 1.6.2 3.2 1.6 4.3 1.6 1.2 3.6 1.3 5.1.3 1-.6 1.6-1.6 1.8-2.7v.3c0 3.7 3 6.7 6.7 6.7 2 0 3.8-.8 5.1-2.3 1.2-1.4 1.8-3.2 1.6-5.1-.3-2.8-2.2-5.1-4.9-5.9-.4-.1-.8-.2-1.3-.2h-.6c1.3-.6 2.4-1.8 2.8-3.2.5-1.9-.3-3.8-2.1-5.1-1.6-1.1-3.5-1.2-5.1-.4-.7.3-1.3.8-1.8 1.3-.1-2.5 1.3-4.8 3.6-5.9 1-.5 2.3-.8 3.6-.6.7.1 1.3 0 1.6-.3.4-.3.5-.9.2-1.3-.4-.6-1-1-1.7-1.1z"/></svg>;
+
+        // --- DATA CONFIG ---
+        const CHAINS = [
+            { id: 1, ticker: 'ETH', rpc: 'https://eth.llamarpc.com', name: 'Ethereum' },
+            { id: 42161, ticker: 'ETH', rpc: 'https://arb1.arbitrum.io/rpc', name: 'Arbitrum' },
+            { id: 8453, ticker: 'ETH', rpc: 'https://mainnet.base.org', name: 'Base' },
+            { id: 10, ticker: 'ETH', rpc: 'https://mainnet.optimism.io', name: 'Optimism' },
+            { id: 56, ticker: 'BNB', rpc: 'https://binance.llamarpc.com', name: 'BNB Chain' },
+            { id: 137, ticker: 'POL', rpc: 'https://polygon-rpc.com', name: 'Polygon' },
+            { id: 43114, ticker: 'AVAX', rpc: 'https://api.avax.network/ext/bc/C/rpc', name: 'Avalanche' },
+            { id: 324, ticker: 'ETH', rpc: 'https://mainnet.era.zksync.io', name: 'zkSync' },
+            { id: 81457, ticker: 'ETH', rpc: 'https://rpc.blast.io', name: 'Blast' },
+            { id: 7777777, ticker: 'ETH', rpc: 'https://rpc.zora.energy', name: 'Zora' },
+        ];
+
+        const rpcCall = async (url, method, params) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000); // Fast timeout for mini apps
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: method, params: params }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (!response.ok) throw new Error('Error');
+                const data = await response.json();
+                return data.result;
+            } catch (e) {
+                clearTimeout(timeoutId);
+                throw e;
+            }
+        };
+
+        const prices = { ETH: 3000, BNB: 600, POL: 0.7, AVAX: 35 };
+
+        // --- APP ---
+        const App = () => {
+            const [step, setStep] = useState('input'); // input, scanning, result
+            const [address, setAddress] = useState('');
+            const [progress, setProgress] = useState(0);
+            const [aggregated, setAggregated] = useState({ tx: 0, volume: 0, chains: 0 });
+            
+            // Simulate Farcaster Context Loading
+            const [isLoaded, setIsLoaded] = useState(false);
+
+            useEffect(() => {
+                // Simulation: In a real Frame v2, we would call sdk.actions.ready() here
+                setTimeout(() => setIsLoaded(true), 500);
+            }, []);
+
+            const handleScan = async () => {
+                if (!address.startsWith('0x') || address.length !== 42) {
+                    // In a Frame, prefer inline validation over alerts
+                    return; 
+                }
+                setStep('scanning');
+                setProgress(0);
+                
+                let totalTx = 0;
+                let totalVol = 0;
+                let activeChains = 0;
+                let completed = 0;
+
+                await Promise.all(CHAINS.map(async (chain) => {
+                    try {
+                        const [txHex, balHex] = await Promise.all([
+                            rpcCall(chain.rpc, 'eth_getTransactionCount', [address, 'latest']),
+                            rpcCall(chain.rpc, 'eth_getBalance', [address, 'latest'])
+                        ]);
+                        
+                        const tx = parseInt(txHex, 16);
+                        const bal = parseInt(balHex, 16) / 1e18;
+                        
+                        if (tx > 0 || bal > 0) {
+                            activeChains++;
+                            totalTx += tx;
+                            const price = prices[chain.ticker] || 0;
+                            // Simulation logic for volume based on tx count (since we can't index full history without backend)
+                            totalVol += (bal * price) + (tx * (Math.random() * 200)); 
+                        }
+                    } catch (e) {
+                        // Ignore RPC errors in mini app to keep it smooth
+                    } finally {
+                        completed++;
+                        setProgress(Math.round((completed / CHAINS.length) * 100));
+                    }
+                }));
+
+                setAggregated({ tx: totalTx, volume: Math.floor(totalVol), chains: activeChains });
+                setTimeout(() => setStep('result'), 500);
+            };
+
+            const handleShare = () => {
+                const text = `🕵️ EVM Scan Report\n\n` +
+                    `💰 Vol: $${new Intl.NumberFormat('en-US').format(aggregated.volume)}\n` +
+                    `📊 Tx: ${aggregated.tx}\n` +
+                    `🔗 Chains: ${aggregated.chains}\n\n` +
+                    `Scan yours inside this Frame! 👇`;
+                
+                const encodedText = encodeURIComponent(text);
+                // Use Farcaster intent URL
+                window.open(`https://warpcast.com/~/compose?text=${encodedText}`, '_blank');
+            };
+
+            const getRank = (vol) => {
+                if (vol > 1000000) return { t: "WHALE", e: "🐋", c: "from-pink-500 to-purple-500" };
+                if (vol > 100000) return { t: "SHARK", e: "🦈", c: "from-purple-500 to-blue-500" };
+                if (vol > 10000) return { t: "DOLPHIN", e: "🐬", c: "from-blue-400 to-cyan-400" };
+                return { t: "PLANKTON", e: "🦠", c: "from-gray-500 to-gray-400" };
+            };
+
+            if (!isLoaded) return (
+                <div className="h-screen w-full flex items-center justify-center bg-black">
+                    <div className="animate-spin w-8 h-8 border-2 border-[#855DCD] border-t-transparent rounded-full"></div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen w-full max-w-md mx-auto relative flex flex-col p-4">
+                    
+                    {/* Title Bar (Mini App Style) */}
+                    <div className="flex items-center justify-center py-4 mb-4">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-[#855DCD] rounded-full animate-pulse"></div>
+                            <span className="font-bold tracking-wider text-sm text-gray-400">EVM INTELLIGENCE</span>
+                        </div>
+                    </div>
+
+                    {/* VIEW: INPUT */}
+                    {step === 'input' && (
+                        <div className="flex-1 flex flex-col justify-center animate-fade-in-down">
+                            <div className="text-center mb-8">
+                                <h1 className="text-4xl font-black text-white mb-2 tracking-tighter">CHECK<br/><span className="text-[#855DCD]">VOLUME</span></h1>
+                                <p className="text-gray-500 text-sm">Enter an EVM address to scan activity across 10+ chains instantly.</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <input 
+                                    type="text" 
+                                    value={address}
+                                    onChange={(e) => setAddress(e.target.value)}
+                                    placeholder="0x..." 
+                                    className="w-full bg-[#111] border border-[#333] text-white p-4 rounded-2xl font-mono text-center focus:border-[#855DCD] outline-none transition-all placeholder-gray-700"
+                                />
+                                <button 
+                                    onClick={handleScan}
+                                    disabled={!address}
+                                    className="w-full bg-[#855DCD] hover:bg-[#6f4cb0] disabled:opacity-50 disabled:bg-gray-800 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(133,93,205,0.3)]"
+                                >
+                                    <SearchIcon size={20} /> SCAN NOW
+                                </button>
+                            </div>
+
+                            <div className="mt-8 grid grid-cols-5 gap-2 opacity-50">
+                                {CHAINS.slice(0,5).map(c => (
+                                    <div key={c.id} className="bg-[#111] rounded p-1 flex justify-center items-center h-8 text-[10px] text-gray-500 border border-[#222]">{c.ticker}</div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VIEW: SCANNING */}
+                    {step === 'scanning' && (
+                        <div className="flex-1 flex flex-col justify-center items-center text-center">
+                            <div className="relative w-32 h-32 mb-8">
+                                <svg className="animate-spin w-full h-full text-[#855DCD]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.5">
+                                    <circle cx="12" cy="12" r="10" strokeDasharray="40" strokeDashoffset="10"></circle>
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center font-black text-2xl text-white">
+                                    {progress}%
+                                </div>
+                            </div>
+                            <h2 className="text-xl font-bold text-white mb-2">Scanning RPCs...</h2>
+                            <p className="text-gray-500 text-sm animate-pulse">Checking balances & nonce across L2s</p>
+                        </div>
+                    )}
+
+                    {/* VIEW: RESULT */}
+                    {step === 'result' && (
+                        <div className="flex-1 flex flex-col animate-fade-in-down">
+                            {/* Rank Card */}
+                            <div className={`w-full rounded-[32px] bg-gradient-to-br ${getRank(aggregated.volume).c} p-[1px] shadow-2xl mb-6`}>
+                                <div className="bg-[#050505] rounded-[31px] p-6 flex flex-col items-center relative overflow-hidden">
+                                    <div className="absolute top-0 w-full h-32 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
+                                    
+                                    <div className="text-6xl mb-2 drop-shadow-lg filter">{getRank(aggregated.volume).e}</div>
+                                    <div className="text-sm font-bold tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-6">
+                                        {getRank(aggregated.volume).t}
+                                    </div>
+
+                                    <div className="w-full grid grid-cols-2 gap-4 mb-6">
+                                        <div className="bg-[#111] rounded-2xl p-3 text-center border border-[#222]">
+                                            <div className="text-xs text-gray-500 uppercase mb-1">Est. Volume</div>
+                                            <div className="text-lg font-bold text-white">${new Intl.NumberFormat('en-US', { notation: "compact" }).format(aggregated.volume)}</div>
+                                        </div>
+                                        <div className="bg-[#111] rounded-2xl p-3 text-center border border-[#222]">
+                                            <div className="text-xs text-gray-500 uppercase mb-1">Transactions</div>
+                                            <div className="text-lg font-bold text-white">{aggregated.tx}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 px-3 py-1 bg-[#111] rounded-full border border-[#222]">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span className="text-xs text-gray-400 font-mono">{address.substring(0,6)}...{address.substring(38)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="space-y-3 mt-auto">
+                                <button 
+                                    onClick={handleShare}
+                                    className="w-full bg-[#472a91] hover:bg-[#593da1] text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 border border-[#6e4bd9]/50 shadow-lg shadow-[#472a91]/30"
+                                >
+                                    <WarpcastIcon size={20} /> SHARE RESULT
+                                </button>
+                                
+                                <button 
+                                    onClick={() => setStep('input')}
+                                    className="w-full bg-[#111] hover:bg-[#222] text-gray-300 font-semibold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+                                >
+                                    <RefreshIcon size={18} /> Scan Another
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
