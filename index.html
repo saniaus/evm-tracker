@@ -2,17 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>EVM Volume Tracker</title>
+    <title>EVM Balance Tracker</title>
     <meta
       name="description"
-      content="EVM Volume Tracker aggregates EVM balances and tx counts across multiple chains so you can see your on-chain footprint and rank."
+      content="Check multi-chain balance of any EVM address using DeBank and see how big the wallet is."
     />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <meta property="og:title" content="EVM Volume Tracker" />
+    <meta property="og:title" content="EVM Balance Tracker" />
     <meta
       property="og:description"
-      content="Track your EVM balances and activity across multiple chains and see your on-chain rank."
+      content="Scan total net worth across Ethereum, Arbitrum, Optimism, Base, BNB, Polygon and more."
     />
     <meta
       property="og:image"
@@ -20,7 +20,6 @@
     />
     <meta property="og:url" content="https://evm-tracker-mauve.vercel.app" />
 
-    <!-- Farcaster Mini App SDK -->
     <script type="module">
       import { sdk } from "https://esm.sh/@farcaster/miniapp-sdk";
       window.farcasterMiniAppSdk = sdk;
@@ -28,8 +27,6 @@
 
     <style>
       :root {
-        --bg: #05000f;
-        --bg-card: #050816;
         --accent: #a855f7;
         --text-main: #f9fafb;
         --text-muted: #9ca3af;
@@ -112,13 +109,13 @@
         width: 6px;
         height: 6px;
         border-radius: 999px;
-        background: #a855f7;
+        background: var(--accent);
         box-shadow: 0 0 12px rgba(168, 85, 247, 0.9);
       }
 
       .heading-main {
         margin-top: 40px;
-        font-size: 32px;
+        font-size: 30px;
         line-height: 1.1;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -215,23 +212,6 @@
         font-size: 10px;
       }
 
-      .chains-row {
-        margin-top: 18px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        justify-content: center;
-      }
-
-      .chain-pill {
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.95);
-        border: 1px solid rgba(55, 65, 81, 0.9);
-        font-size: 10px;
-        color: rgba(209, 213, 219, 0.95);
-      }
-
       .result-card {
         margin-top: 20px;
         padding: 12px 14px;
@@ -289,6 +269,12 @@
         color: transparent;
       }
 
+      .chains-list {
+        margin-top: 6px;
+        font-size: 10px;
+        color: var(--text-muted);
+      }
+
       .share-btn {
         margin-top: 8px;
         width: 100%;
@@ -313,11 +299,19 @@
         font-size: 12px;
       }
 
-      .footer-note {
-        margin-top: 18px;
+      .footer-note,
+      .error-msg {
+        margin-top: 10px;
         font-size: 10px;
-        color: var(--text-muted);
         text-align: center;
+      }
+
+      .footer-note {
+        color: var(--text-muted);
+      }
+
+      .error-msg {
+        color: #f87171;
       }
 
       .hidden {
@@ -330,7 +324,7 @@
       <div class="inner">
         <div class="badge-top">
           <span class="badge-dot"></span>
-          <span>EVM Intelligence</span>
+          <span>EVM Balance Scanner</span>
         </div>
 
         <h1 class="heading-main">
@@ -339,8 +333,8 @@
         </h1>
 
         <p class="subtext">
-          Enter an EVM address to see its cross-chain balances and activity,
-          then get a real on-chain rank.
+          Enter an EVM address to fetch multi-chain balance from DeBank and see
+          how big the wallet is.
         </p>
 
         <form id="scan-form" class="form-shell">
@@ -356,35 +350,22 @@
 
           <button id="scan-button" type="submit" class="btn-main">
             <span class="btn-main-icon">⌕</span>
-            <span>Scan Now</span>
+            <span>Scan Balance</span>
           </button>
         </form>
 
-        <div class="chains-row">
-          <span class="chain-pill">Ethereum</span>
-          <span class="chain-pill">Arbitrum</span>
-          <span class="chain-pill">Optimism</span>
-          <span class="chain-pill">Base</span>
-          <span class="chain-pill">BNB</span>
-          <span class="chain-pill">Polygon</span>
-        </div>
-
         <div id="result-card" class="result-card hidden">
           <div class="result-header">
-            <div class="result-title">EVM Portfolio Snapshot</div>
+            <div class="result-title">Portfolio Snapshot</div>
             <div id="rank-label" class="result-rank">Shrimp</div>
           </div>
 
           <div class="result-grid">
             <div class="metric">
-              <div class="metric-label">Total value (est.)</div>
-              <div id="metric-volume" class="metric-value metric-value-accent">
+              <div class="metric-label">Total balance (USD)</div>
+              <div id="metric-balance" class="metric-value metric-value-accent">
                 $0
               </div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Tx count</div>
-              <div id="metric-tx" class="metric-value">0</div>
             </div>
             <div class="metric">
               <div class="metric-label">Active chains</div>
@@ -392,15 +373,19 @@
             </div>
           </div>
 
+          <div id="chains-list" class="chains-list hidden"></div>
+
           <button id="share-button" type="button" class="share-btn">
             <span class="share-btn-icon">👥</span>
             <span>Share Result</span>
           </button>
         </div>
 
+        <p id="error-msg" class="error-msg hidden"></p>
+
         <p class="footer-note">
-          Data is fetched live from RPC endpoints per chain. USD estimates use
-          rough prices and are for ranking only.
+          Balance data is fetched from DeBank Open API. Values are approximate
+          and for ranking only.
         </p>
       </div>
     </div>
@@ -412,11 +397,12 @@
         const addrInput = document.getElementById("address-input");
         const scanButton = document.getElementById("scan-button");
         const resultCard = document.getElementById("result-card");
-        const metricVolume = document.getElementById("metric-volume");
-        const metricTx = document.getElementById("metric-tx");
+        const metricBalance = document.getElementById("metric-balance");
         const metricChains = document.getElementById("metric-chains");
         const rankLabel = document.getElementById("rank-label");
         const shareButton = document.getElementById("share-button");
+        const errorMsg = document.getElementById("error-msg");
+        const chainsListEl = document.getElementById("chains-list");
 
         let lastReport = null;
         let isInsideMiniApp = false;
@@ -447,18 +433,53 @@
           }).format(n);
         }
 
+        function showError(message) {
+          errorMsg.textContent = message;
+          errorMsg.classList.remove("hidden");
+        }
+
+        function clearError() {
+          errorMsg.textContent = "";
+          errorMsg.classList.add("hidden");
+        }
+
+        function renderChains(chains) {
+          if (!chains || !chains.length) {
+            chainsListEl.classList.add("hidden");
+            chainsListEl.textContent = "";
+            return;
+          }
+
+          const top = chains
+            .filter((c) => c.usd > 0)
+            .slice(0, 5)
+            .map((c) => `${c.name || c.id}: ${formatUsd(c.usd)}`);
+
+          if (!top.length) {
+            chainsListEl.classList.add("hidden");
+            chainsListEl.textContent = "";
+            return;
+          }
+
+          chainsListEl.textContent = "Top chains: " + top.join(" • ");
+          chainsListEl.classList.remove("hidden");
+        }
+
         form.addEventListener("submit", async (e) => {
           e.preventDefault();
+          clearError();
+
           const address = (addrInput.value || "").trim();
 
           if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-            alert("Please enter a valid EVM address.");
+            showError("Please enter a valid EVM address.");
             return;
           }
 
           if (isScanning) return;
           isScanning = true;
           scanButton.disabled = true;
+
           const labelSpan =
             scanButton.querySelector("span:last-child");
           const originalLabel = labelSpan.textContent;
@@ -471,22 +492,23 @@
               `/api/scan?address=${encodeURIComponent(address)}`
             );
             if (!resp.ok) {
-              throw new Error("Scan failed");
+              throw new Error(`Scan failed (${resp.status})`);
             }
+
             const data = await resp.json();
 
             lastReport = {
               address: data.address,
-              totalUsd: data.totalUsd,
-              totalTx: data.totalTx,
-              activeChains: data.activeChains,
-              rank: data.rank
+              totalUsd: data.totalUsd || 0,
+              activeChains: data.activeChains || 0,
+              rank: data.rank || "Unknown",
+              chains: data.chains || []
             };
 
-            metricVolume.textContent = formatUsd(data.totalUsd || 0);
-            metricTx.textContent = String(data.totalTx || 0);
-            metricChains.textContent = String(data.activeChains || 0);
-            rankLabel.textContent = data.rank || "Unknown";
+            metricBalance.textContent = formatUsd(lastReport.totalUsd);
+            metricChains.textContent = String(lastReport.activeChains);
+            rankLabel.textContent = lastReport.rank;
+            renderChains(lastReport.chains);
 
             resultCard.classList.remove("hidden");
 
@@ -503,8 +525,8 @@
             }
           } catch (err) {
             console.error(err);
-            alert(
-              "Failed to scan this address. Check RPC configuration or try again."
+            showError(
+              "Failed to fetch balance. Check DeBank key / rate limit or try again."
             );
           } finally {
             isScanning = false;
@@ -515,23 +537,21 @@
 
         async function handleShare() {
           if (!lastReport) {
-            alert("Scan an address first.");
+            showError("Scan an address first before sharing.");
             return;
           }
 
-          const { address, totalUsd, totalTx, activeChains, rank } =
-            lastReport;
+          const { address, totalUsd, activeChains, rank } = lastReport;
 
           const textLines = [
-            "🕵️ EVM Scan Report",
+            "🧮 EVM Balance Report",
             "",
             `💳 Address: ${address.slice(0, 6)}…${address.slice(-4)}`,
-            `💰 Portfolio (est.): ${formatUsd(totalUsd || 0)}`,
-            `📊 Tx count: ${totalTx || 0}`,
+            `💰 Net worth (approx.): ${formatUsd(totalUsd || 0)}`,
             `🔗 Active chains: ${activeChains || 0}`,
             `🏅 Rank: ${rank}`,
             "",
-            "Scan yours inside this Mini App 👇"
+            "Check your own wallet inside this Mini App 👇"
           ];
 
           const text = textLines.join("\n");
