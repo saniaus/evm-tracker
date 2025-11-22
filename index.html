@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EVM Volume Tracker</title>
+    <meta
+      name="description"
+      content="EVM Volume Tracker aggregates EVM balances and tx counts across multiple chains so you can see your on-chain footprint and rank."
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <meta property="og:title" content="EVM Volume Tracker" />
+    <meta
+      property="og:description"
+      content="Track your EVM balances and activity across multiple chains and see your on-chain rank."
+    />
+    <meta
+      property="og:image"
+      content="https://evm-tracker-mauve.vercel.app/og_image.png"
+    />
+    <meta property="og:url" content="https://evm-tracker-mauve.vercel.app" />
+
+    <!-- Farcaster Mini App SDK -->
+    <script type="module">
+      import { sdk } from "https://esm.sh/@farcaster/miniapp-sdk";
+      window.farcasterMiniAppSdk = sdk;
+    </script>
+
+    <style>
+      :root {
+        --bg: #05000f;
+        --bg-card: #050816;
+        --accent: #a855f7;
+        --text-main: #f9fafb;
+        --text-muted: #9ca3af;
+        --radius-xl: 28px;
+        --shadow-soft: 0 20px 50px rgba(0, 0, 0, 0.9);
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont,
+          "SF Pro Text", "Inter", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--font-sans);
+        background: #3b0dff;
+        color: var(--text-main);
+      }
+
+      body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .root-shell {
+        width: 388px;
+        max-width: 100%;
+        border-radius: var(--radius-xl);
+        background: radial-gradient(
+            circle at top,
+            rgba(59, 130, 246, 0.15),
+            transparent 55%
+          ),
+          radial-gradient(circle at 20% 80%, rgba(168, 85, 247, 0.35), #020617);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        box-shadow: var(--shadow-soft);
+        padding: 32px 24px 26px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .root-shell::before {
+        content: "";
+        position: absolute;
+        inset: -40%;
+        background: radial-gradient(
+          circle at top,
+          rgba(147, 51, 234, 0.3),
+          transparent 60%
+        );
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      .inner {
+        position: relative;
+        z-index: 1;
+      }
+
+      .badge-top {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .badge-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: #a855f7;
+        box-shadow: 0 0 12px rgba(168, 85, 247, 0.9);
+      }
+
+      .heading-main {
+        margin-top: 40px;
+        font-size: 32px;
+        line-height: 1.1;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-align: center;
+      }
+
+      .heading-main span:nth-child(1) {
+        display: block;
+        font-weight: 800;
+      }
+
+      .heading-main span:nth-child(2) {
+        display: block;
+        font-weight: 800;
+        background: linear-gradient(120deg, #c4b5fd, #a855f7, #ec4899);
+        -webkit-background-clip: text;
+        color: transparent;
+      }
+
+      .subtext {
+        margin-top: 14px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--text-muted);
+        text-align: center;
+      }
+
+      .form-shell {
+        margin-top: 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .input-wrap {
+        border-radius: 999px;
+        padding: 3px;
+        background: linear-gradient(
+          135deg,
+          rgba(15, 23, 42, 0.95),
+          rgba(15, 23, 42, 1)
+        );
+        border: 1px solid rgba(148, 163, 184, 0.35);
+      }
+
+      .input-inner {
+        width: 100%;
+        border-radius: 999px;
+        border: none;
+        outline: none;
+        padding: 10px 16px;
+        background: transparent;
+        color: var(--text-main);
+        font-size: 13px;
+      }
+
+      .input-inner::placeholder {
+        color: rgba(148, 163, 184, 0.7);
+      }
+
+      .btn-main {
+        width: 100%;
+        border-radius: 999px;
+        border: none;
+        outline: none;
+        padding: 11px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: radial-gradient(circle at top, #1f2937, #020617);
+        color: #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
+      }
+
+      .btn-main:disabled {
+        opacity: 0.7;
+        cursor: default;
+      }
+
+      .btn-main-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+      }
+
+      .chains-row {
+        margin-top: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .chain-pill {
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid rgba(55, 65, 81, 0.9);
+        font-size: 10px;
+        color: rgba(209, 213, 219, 0.95);
+      }
+
+      .result-card {
+        margin-top: 20px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        font-size: 11px;
+      }
+
+      .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .result-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: rgba(148, 163, 184, 0.95);
+      }
+
+      .result-rank {
+        font-size: 11px;
+        font-weight: 600;
+        color: #f97316;
+      }
+
+      .result-grid {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .metric {
+        flex: 1;
+      }
+
+      .metric-label {
+        font-size: 10px;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+      }
+
+      .metric-value {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .metric-value-accent {
+        background: linear-gradient(120deg, #a855f7, #ec4899);
+        -webkit-background-clip: text;
+        color: transparent;
+      }
+
+      .share-btn {
+        margin-top: 8px;
+        width: 100%;
+        border-radius: 999px;
+        padding: 8px 12px;
+        border: none;
+        outline: none;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: #6d28d9;
+        color: #f9fafb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        cursor: pointer;
+      }
+
+      .share-btn-icon {
+        font-size: 12px;
+      }
+
+      .footer-note {
+        margin-top: 18px;
+        font-size: 10px;
+        color: var(--text-muted);
+        text-align: center;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-root" class="root-shell hidden">
+      <div class="inner">
+        <div class="badge-top">
+          <span class="badge-dot"></span>
+          <span>EVM Intelligence</span>
+        </div>
+
+        <h1 class="heading-main">
+          <span>Check</span>
+          <span>Volume</span>
+        </h1>
+
+        <p class="subtext">
+          Enter an EVM address to see its cross-chain balances and activity,
+          then get a real on-chain rank.
+        </p>
+
+        <form id="scan-form" class="form-shell">
+          <div class="input-wrap">
+            <input
+              id="address-input"
+              type="text"
+              class="input-inner"
+              placeholder="0x..."
+              autocomplete="off"
+            />
+          </div>
+
+          <button id="scan-button" type="submit" class="btn-main">
+            <span class="btn-main-icon">⌕</span>
+            <span>Scan Now</span>
+          </button>
+        </form>
+
+        <div class="chains-row">
+          <span class="chain-pill">Ethereum</span>
+          <span class="chain-pill">Arbitrum</span>
+          <span class="chain-pill">Optimism</span>
+          <span class="chain-pill">Base</span>
+          <span class="chain-pill">BNB</span>
+          <span class="chain-pill">Polygon</span>
+        </div>
+
+        <div id="result-card" class="result-card hidden">
+          <div class="result-header">
+            <div class="result-title">EVM Portfolio Snapshot</div>
+            <div id="rank-label" class="result-rank">Shrimp</div>
+          </div>
+
+          <div class="result-grid">
+            <div class="metric">
+              <div class="metric-label">Total value (est.)</div>
+              <div id="metric-volume" class="metric-value metric-value-accent">
+                $0
+              </div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Tx count</div>
+              <div id="metric-tx" class="metric-value">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Active chains</div>
+              <div id="metric-chains" class="metric-value">0</div>
+            </div>
+          </div>
+
+          <button id="share-button" type="button" class="share-btn">
+            <span class="share-btn-icon">👥</span>
+            <span>Share Result</span>
+          </button>
+        </div>
+
+        <p class="footer-note">
+          Data is fetched live from RPC endpoints per chain. USD estimates use
+          rough prices and are for ranking only.
+        </p>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const root = document.getElementById("app-root");
+        const form = document.getElementById("scan-form");
+        const addrInput = document.getElementById("address-input");
+        const scanButton = document.getElementById("scan-button");
+        const resultCard = document.getElementById("result-card");
+        const metricVolume = document.getElementById("metric-volume");
+        const metricTx = document.getElementById("metric-tx");
+        const metricChains = document.getElementById("metric-chains");
+        const rankLabel = document.getElementById("rank-label");
+        const shareButton = document.getElementById("share-button");
+
+        let lastReport = null;
+        let isInsideMiniApp = false;
+        let hasPromptedAdd = false;
+        let isScanning = false;
+
+        async function initMiniApp() {
+          try {
+            const sdk = window.farcasterMiniAppSdk;
+            if (sdk && sdk.actions && sdk.actions.ready) {
+              await sdk.actions.ready();
+              isInsideMiniApp = true;
+            }
+          } catch (e) {
+            console.error("miniapp ready failed", e);
+          } finally {
+            root.classList.remove("hidden");
+          }
+        }
+
+        initMiniApp();
+
+        function formatUsd(n) {
+          return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 0
+          }).format(n);
+        }
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const address = (addrInput.value || "").trim();
+
+          if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+            alert("Please enter a valid EVM address.");
+            return;
+          }
+
+          if (isScanning) return;
+          isScanning = true;
+          scanButton.disabled = true;
+          const labelSpan =
+            scanButton.querySelector("span:last-child");
+          const originalLabel = labelSpan.textContent;
+          labelSpan.textContent = "Scanning…";
+
+          resultCard.classList.add("hidden");
+
+          try {
+            const resp = await fetch(
+              `/api/scan?address=${encodeURIComponent(address)}`
+            );
+            if (!resp.ok) {
+              throw new Error("Scan failed");
+            }
+            const data = await resp.json();
+
+            lastReport = {
+              address: data.address,
+              totalUsd: data.totalUsd,
+              totalTx: data.totalTx,
+              activeChains: data.activeChains,
+              rank: data.rank
+            };
+
+            metricVolume.textContent = formatUsd(data.totalUsd || 0);
+            metricTx.textContent = String(data.totalTx || 0);
+            metricChains.textContent = String(data.activeChains || 0);
+            rankLabel.textContent = data.rank || "Unknown";
+
+            resultCard.classList.remove("hidden");
+
+            if (isInsideMiniApp && !hasPromptedAdd) {
+              hasPromptedAdd = true;
+              try {
+                const sdk = window.farcasterMiniAppSdk;
+                if (sdk && sdk.actions && sdk.actions.addMiniApp) {
+                  await sdk.actions.addMiniApp();
+                }
+              } catch (err) {
+                console.error("addMiniApp failed", err);
+              }
+            }
+          } catch (err) {
+            console.error(err);
+            alert(
+              "Failed to scan this address. Check RPC configuration or try again."
+            );
+          } finally {
+            isScanning = false;
+            scanButton.disabled = false;
+            labelSpan.textContent = originalLabel;
+          }
+        });
+
+        async function handleShare() {
+          if (!lastReport) {
+            alert("Scan an address first.");
+            return;
+          }
+
+          const { address, totalUsd, totalTx, activeChains, rank } =
+            lastReport;
+
+          const textLines = [
+            "🕵️ EVM Scan Report",
+            "",
+            `💳 Address: ${address.slice(0, 6)}…${address.slice(-4)}`,
+            `💰 Portfolio (est.): ${formatUsd(totalUsd || 0)}`,
+            `📊 Tx count: ${totalTx || 0}`,
+            `🔗 Active chains: ${activeChains || 0}`,
+            `🏅 Rank: ${rank}`,
+            "",
+            "Scan yours inside this Mini App 👇"
+          ];
+
+          const text = textLines.join("\n");
+          const frameUrl =
+            "https://farcaster.xyz/miniapps/iNnAoJ7jXYm0/evm-volume-tracker";
+          const sdk = window.farcasterMiniAppSdk;
+
+          try {
+            if (sdk && sdk.actions && sdk.actions.composeCast) {
+              await sdk.actions.composeCast({
+                text,
+                embeds: [frameUrl],
+                close: true
+              });
+              return;
+            }
+          } catch (e) {
+            console.error("composeCast failed, falling back to URL", e);
+          }
+
+          const encodedText = encodeURIComponent(text);
+          const encodedEmbed = encodeURIComponent(frameUrl);
+          const url =
+            "https://farcaster.xyz/~/compose?text=" +
+            encodedText +
+            "&embeds[]=" +
+            encodedEmbed;
+
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+
+        shareButton.addEventListener("click", handleShare);
+      });
+    </script>
+  </body>
+</html>
