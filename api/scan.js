@@ -1,12 +1,78 @@
 // api/scan.js
-// DeBank Open API - only total_balance endpoint (stable, pakai AccessKey)
+// EVM multi-chain balance scanner via GoldRush (Covalent) API.
+// Menggunakan endpoint: GET /v1/{chainName}/address/{walletAddress}/balances_v2/
+//
+// Dok: https://goldrush.dev/docs/api-reference/foundational-api/balances/get-token-balances-for-address
+// Auth: header Authorization: Bearer <API_KEY>
 
-const BASE = "https://pro-openapi.debank.com/v1";
+const BASE_URL = "https://api.covalenthq.com/v1";
+
+// Chain yang discan (bisa ditambah sesuai kebutuhan)
+const CHAINS = [
+  { id: "eth-mainnet", label: "Ethereum" },
+  { id: "polygon-mainnet", label: "Polygon" },
+  { id: "bsc-mainnet", label: "BNB Chain" },
+  { id: "avalanche-mainnet", label: "Avalanche" },
+  { id: "arbitrum-mainnet", label: "Arbitrum" },
+  { id: "optimism-mainnet", label: "Optimism" },
+  { id: "base-mainnet", label: "Base" }
+];
+
+// Ranking berdasarkan total USD balance
+function computeRank(totalUsd) {
+  if (totalUsd > 5_000_000) return "Blue Whale";
+  if (totalUsd > 1_000_000) return "Whale";
+  if (totalUsd > 200_000) return "Shark";
+  if (totalUsd > 25_000) return "Dolphin";
+  if (totalUsd > 2_500) return "Fish";
+  return "Shrimp";
+}
+
+async function fetchChainBalance(chain, address, apiKey) {
+  const url =
+    `${BASE_URL}/v1/${encodeURIComponent(chain.id)}` +
+    `/address/${encodeURIComponent(address)}/balances_v2/` +
+    `?quote-currency=USD&no-spam=true`;
+
+  const resp = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      accept: "application/json"
+    }
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    console.error(
+      "GoldRush balances_v2 error",
+      chain.id,
+      resp.status,
+      text.slice(0, 500)
+    );
+    // Kalau 404/500 untuk chain tertentu, kita skip chain itu saja.
+    return { chainId: chain.id, label: chain.label, usd: 0, error: true };
+  }
+
+  const json = await resp.json();
+  const items = json?.data?.items || json?.items || [];
+
+  let usd = 0;
+  for (const item of items) {
+    const q = typeof item.quote === "number" ? item.quote : 0;
+    if (q > 0) usd += q;
+  }
+
+  return {
+    chainId: chain.id,
+    label: chain.label,
+    usd
+  };
+}
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -21,52 +87,49 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Invalid EVM address" });
   }
 
-  const accessKey = process.env.DEBANK_ACCESS_KEY;
-  if (!accessKey) {
-    return res.status(500).json({ error: "Missing DEBANK_ACCESS_KEY" });
+  const apiKey = process.env.COVALENT_API_KEY;
+  if (!apiKey) {
+    console.error("Missing COVALENT_API_KEY env");
+    return res.status(500).json({ error: "Server missing Covalent API key" });
   }
 
-  const url =
-    `${BASE}/user/total_balance?id=${encodeURIComponent(address)}`;
-
   try {
-    const resp = await fetch(url, {
-      headers: {
-        accept: "application/json",
-        AccessKey: accessKey
-      }
-    });
+    // Panggil semua chain paralel
+    const results = await Promise.all(
+      CHAINS.map((c) => fetchChainBalance(c, address, apiKey))
+    );
 
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      console.error("DeBank total_balance error", resp.status, text);
-      return res
-        .status(resp.status)
-        .json({ error: "debank_error", status: resp.status, body: text });
+    let totalUsd = 0;
+    const chains = [];
+
+    for (const r of results) {
+      const usd = Math.max(0, Math.round(r.usd || 0));
+      if (usd > 0) {
+        totalUsd += usd;
+      }
+      chains.push({
+        id: r.chainId,
+        name: r.label,
+        usd
+      });
     }
 
-    const json = await resp.json();
-    const usd = typeof json.total_usd_value === "number"
-      ? json.total_usd_value
-      : 0;
+    chains.sort((a, b) => (b.usd || 0) - (a.usd || 0));
 
-    // simple rank
-    let rank = "Shrimp";
-    if (usd > 5_000_000) rank = "Blue Whale";
-    else if (usd > 1_000_000) rank = "Whale";
-    else if (usd > 200_000) rank = "Shark";
-    else if (usd > 25_000) rank = "Dolphin";
-    else if (usd > 2_500) rank = "Fish";
+    const activeChains = chains.filter((c) => c.usd > 0).length;
+    const rank = computeRank(totalUsd);
 
     return res.status(200).json({
       address,
-      totalUsd: Math.round(usd),
-      activeChains: null, // tidak dihitung di mode ini
+      totalUsd: Math.round(totalUsd),
+      activeChains,
       rank,
-      chains: []          // kosong (frontend aman, hanya tidak tampil list)
+      chains
     });
-  } catch (e) {
-    console.error("DeBank fetch failed", e);
-    return res.status(502).json({ error: "fetch_failed", detail: e.message });
+  } catch (err) {
+    console.error("GoldRush scan fatal error", err);
+    return res
+      .status(502)
+      .json({ error: "fetch_failed", detail: err.message || String(err) });
   }
 };
