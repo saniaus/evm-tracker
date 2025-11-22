@@ -1,53 +1,56 @@
-// api/scan.js – FIXED for DeBank Cloud API (correct domain)
+// api/scan.js
+// DeBank Open API - only total_balance endpoint (stable, pakai AccessKey)
 
-const BASE = "https://cloud.debank.com";
-
-async function fetchJSON(url, key) {
-  const resp = await fetch(url, {
-    headers: {
-      AccessKey: key,
-      accept: "application/json"
-    }
-  });
-
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`HTTP ${resp.status}: ${text}`);
-  }
-  return resp.json();
-}
+const BASE = "https://pro-openapi.debank.com/v1";
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  const key = process.env.DEBANK_ACCESS_KEY;
-  const address = req.query.address;
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
-  if (!key) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const address = (req.query && req.query.address) || "";
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    return res.status(400).json({ error: "Invalid EVM address" });
+  }
+
+  const accessKey = process.env.DEBANK_ACCESS_KEY;
+  if (!accessKey) {
     return res.status(500).json({ error: "Missing DEBANK_ACCESS_KEY" });
   }
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-    return res.status(400).json({ error: "Invalid address" });
-  }
+
+  const url =
+    `${BASE}/user/total_balance?id=${encodeURIComponent(address)}`;
 
   try {
-    // GET total USD balance
-    const total = await fetchJSON(
-      `${BASE}/user/total_balance?id=${address}`,
-      key
-    );
+    const resp = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        AccessKey: accessKey
+      }
+    });
 
-    // GET multi-chain balances
-    const chains = await fetchJSON(
-      `${BASE}/user/chain_balance_list?id=${address}`,
-      key
-    );
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      console.error("DeBank total_balance error", resp.status, text);
+      return res
+        .status(resp.status)
+        .json({ error: "debank_error", status: resp.status, body: text });
+    }
 
-    const usd = total.data?.usd_value || 0;
-    const list = chains.data || [];
-    const active = list.filter((c) => c.usd_value > 0);
+    const json = await resp.json();
+    const usd = typeof json.total_usd_value === "number"
+      ? json.total_usd_value
+      : 0;
 
-    // Ranking
+    // simple rank
     let rank = "Shrimp";
     if (usd > 5_000_000) rank = "Blue Whale";
     else if (usd > 1_000_000) rank = "Whale";
@@ -58,15 +61,12 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       address,
       totalUsd: Math.round(usd),
-      activeChains: active.length,
+      activeChains: null, // tidak dihitung di mode ini
       rank,
-      chains: active.map((c) => ({
-        id: c.chain_id,
-        name: c.chain,
-        usd: Math.round(c.usd_value)
-      }))
+      chains: []          // kosong (frontend aman, hanya tidak tampil list)
     });
-  } catch (err) {
-    return res.status(502).json({ error: err.message });
+  } catch (e) {
+    console.error("DeBank fetch failed", e);
+    return res.status(502).json({ error: "fetch_failed", detail: e.message });
   }
 };
