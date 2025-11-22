@@ -1,9 +1,9 @@
 {
   "name": "EVM Volume Tracker",
-  "version": "next",
+  "version": "1.0",
   "iconUrl": "https://evm-tracker-mauve.vercel.app/icon.png",
   "homeUrl": "https://evm-tracker-mauve.vercel.app/",
-  "imageUrl": "https://placehold.co/600x400/855DCD/ffffff?text=EVM+Tracker",
+  "imageUrl": "https://evm-tracker-mauve.vercel.app/og_image.png",
   "description": "Check transaction volume across EVM chains instantly.",
   "webhookUrl": "https://evm-tracker-mauve.vercel.app/api/webhook",
   "frames": {
