@@ -5,10 +5,11 @@
     <title>EVM Balance Tracker</title>
     <meta
       name="description"
-      content="Check multi-chain balance of any EVM address using DeBank and see how big the wallet is."
+      content="Check multi-chain balance of any EVM address using GoldRush (Covalent) and see how big the wallet is."
     />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+    <!-- Open Graph -->
     <meta property="og:title" content="EVM Balance Tracker" />
     <meta
       property="og:description"
@@ -20,6 +21,7 @@
     />
     <meta property="og:url" content="https://evm-tracker-mauve.vercel.app" />
 
+    <!-- Farcaster Mini App SDK -->
     <script type="module">
       import { sdk } from "https://esm.sh/@farcaster/miniapp-sdk";
       window.farcasterMiniAppSdk = sdk;
@@ -333,8 +335,8 @@
         </h1>
 
         <p class="subtext">
-          Enter an EVM address to fetch multi-chain balance from DeBank and see
-          how big the wallet is.
+          Enter an EVM address to fetch multi-chain balance from GoldRush
+          (Covalent) and see how big the wallet is.
         </p>
 
         <form id="scan-form" class="form-shell">
@@ -384,8 +386,8 @@
         <p id="error-msg" class="error-msg hidden"></p>
 
         <p class="footer-note">
-          Balance data is fetched from DeBank Open API. Values are approximate
-          and for ranking only.
+          Balance data is fetched from GoldRush (Covalent) API. Values are
+          approximate and for ranking only.
         </p>
       </div>
     </div>
@@ -492,7 +494,8 @@
               `/api/scan?address=${encodeURIComponent(address)}`
             );
             if (!resp.ok) {
-              throw new Error(`Scan failed (${resp.status})`);
+              const t = await resp.text();
+              throw new Error(`Scan failed (${resp.status}): ${t}`);
             }
 
             const data = await resp.json();
@@ -526,7 +529,7 @@
           } catch (err) {
             console.error(err);
             showError(
-              "Failed to fetch balance. Check DeBank key / rate limit or try again."
+              "Failed to fetch balance. Check API key / rate limit or try again."
             );
           } finally {
             isScanning = false;
