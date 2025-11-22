@@ -14,7 +14,7 @@
       "action": {
         "type": "launch_frame",
         "name": "EVM Tracker",
-        "url": "https://GANTI-DENGAN-URL-VERCEL-KAMU.vercel.app",
+        "url": "https://evm-tracker-mauve.vercel.app/",
         "splashImageUrl": "https://placehold.co/200x200/855DCD/ffffff?text=Loading..."
       }
     }
