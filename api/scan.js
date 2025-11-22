@@ -1,73 +1,29 @@
 // api/scan.js
-// Scan EVM address via RPC:
-// - eth_getBalance  -> total aset native per chain
-// - eth_getTransactionCount -> jumlah tx outbound per chain
+// Multi-chain balance scanner via DeBank Open API.
+// - user/used_chain_list => daftar chain yang pernah dipakai
+// - user/chain_balance   => usd_value per chain
+// Output: totalUsd, activeChains, rank, chains[]
 
-const CHAINS = [
-  {
-    id: "ethereum",
-    label: "Ethereum",
-    symbol: "ETH",
-    decimals: 18,
-    rpcEnv: "RPC_ETH_MAINNET",
-    usd: 3500
-  },
-  {
-    id: "arbitrum",
-    label: "Arbitrum",
-    symbol: "ETH",
-    decimals: 18,
-    rpcEnv: "RPC_ARBITRUM",
-    usd: 3500
-  },
-  {
-    id: "optimism",
-    label: "Optimism",
-    symbol: "ETH",
-    decimals: 18,
-    rpcEnv: "RPC_OPTIMISM",
-    usd: 3500
-  },
-  {
-    id: "base",
-    label: "Base",
-    symbol: "ETH",
-    decimals: 18,
-    rpcEnv: "RPC_BASE",
-    usd: 3500
-  },
-  {
-    id: "bsc",
-    label: "BNB Chain",
-    symbol: "BNB",
-    decimals: 18,
-    rpcEnv: "RPC_BSC",
-    usd: 600
-  },
-  {
-    id: "polygon",
-    label: "Polygon",
-    symbol: "MATIC",
-    decimals: 18,
-    rpcEnv: "RPC_POLYGON",
-    usd: 0.7
-  }
-];
+const USED_CHAIN_ENDPOINT =
+  "https://pro-openapi.debank.com/v1/user/used_chain_list";
+const CHAIN_BALANCE_ENDPOINT =
+  "https://pro-openapi.debank.com/v1/user/chain_balance";
 
-function hexToBigInt(hex) {
-  if (!hex) return 0n;
-  return BigInt(hex);
-}
+// batasi jumlah chain untuk jaga rate limit & latency
+const MAX_CHAINS = 20;
 
-function bigIntToDecimal(bi, decimals) {
-  if (bi === 0n) return 0;
-  const base = 10n ** BigInt(decimals);
-  const integer = bi / base;
-  const fraction = bi % base;
-  return Number(integer) + Number(fraction) / Number(base);
+function computeRank(totalUsd) {
+  let rank = "Shrimp";
+  if (totalUsd > 5_000_000) rank = "Blue Whale";
+  else if (totalUsd > 1_000_000) rank = "Whale";
+  else if (totalUsd > 200_000) rank = "Shark";
+  else if (totalUsd > 25_000) rank = "Dolphin";
+  else if (totalUsd > 2_500) rank = "Fish";
+  return rank;
 }
 
 module.exports = async (req, res) => {
+  // CORS untuk dipanggil dari Mini App (browser)
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -86,101 +42,124 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Invalid EVM address" });
   }
 
-  let totalUsd = 0;
-  let totalTx = 0;
-  let activeChains = 0;
-  const perChain = [];
+  const accessKey = process.env.DEBANK_ACCESS_KEY;
+  if (!accessKey) {
+    console.error("Missing DEBANK_ACCESS_KEY env");
+    return res
+      .status(500)
+      .json({ error: "Server missing DeBank access key" });
+  }
 
-  await Promise.all(
-    CHAINS.map(async (chain, idx) => {
-      const rpcUrl = process.env[chain.rpcEnv];
-      if (!rpcUrl) {
-        console.warn(`Missing RPC for ${chain.id} (${chain.rpcEnv})`);
-        return;
-      }
-
-      try {
-        const balanceBody = {
-          jsonrpc: "2.0",
-          id: idx * 2 + 1,
-          method: "eth_getBalance",
-          params: [address, "latest"]
-        };
-
-        const txCountBody = {
-          jsonrpc: "2.0",
-          id: idx * 2 + 2,
-          method: "eth_getTransactionCount",
-          params: [address, "latest"]
-        };
-
-        const [balResp, txResp] = await Promise.all([
-          fetch(rpcUrl, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(balanceBody)
-          }),
-          fetch(rpcUrl, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(txCountBody)
-          })
-        ]);
-
-        if (!balResp.ok || !txResp.ok) {
-          console.error(
-            `RPC error ${chain.id}`,
-            balResp.status,
-            txResp.status
-          );
-          return;
+  try {
+    // 1) Ambil daftar chain yang pernah dipakai user
+    const usedChainsResp = await fetch(
+      `${USED_CHAIN_ENDPOINT}?id=${encodeURIComponent(address)}`,
+      {
+        headers: {
+          accept: "application/json",
+          AccessKey: accessKey
         }
-
-        const balJson = await balResp.json();
-        const txJson = await txResp.json();
-
-        const balanceWei = hexToBigInt(balJson.result || "0x0");
-        const txCount = parseInt(txJson.result || "0x0", 16) || 0;
-
-        const balance = bigIntToDecimal(
-          balanceWei,
-          chain.decimals || 18
-        );
-        const balanceUsd = balance * (chain.usd || 0);
-
-        if (balance > 0 || txCount > 0) {
-          activeChains += 1;
-        }
-
-        totalUsd += balanceUsd;
-        totalTx += txCount;
-
-        perChain.push({
-          id: chain.id,
-          label: chain.label,
-          symbol: chain.symbol,
-          balance,
-          balanceUsd,
-          txCount
-        });
-      } catch (e) {
-        console.error(`scan failed for ${chain.id}`, e);
       }
-    })
-  );
+    );
 
-  let rank = "Shrimp";
-  if (totalUsd > 1_000_000) rank = "Whale";
-  else if (totalUsd > 200_000) rank = "Shark";
-  else if (totalUsd > 25_000) rank = "Dolphin";
-  else if (totalUsd > 2_500) rank = "Fish";
+    if (!usedChainsResp.ok) {
+      const bodyText = await usedChainsResp.text().catch(() => "");
+      console.error(
+        "DeBank used_chain_list error",
+        usedChainsResp.status,
+        bodyText
+      );
+      return res.status(502).json({
+        error: "DeBank used_chain_list failed",
+        status: usedChainsResp.status
+      });
+    }
 
-  return res.status(200).json({
-    address,
-    totalUsd: Math.round(totalUsd),
-    totalTx,
-    activeChains,
-    rank,
-    chains: perChain
-  });
+    const usedChainsJson = await usedChainsResp.json();
+    const chainsArray = Array.isArray(usedChainsJson)
+      ? usedChainsJson
+      : [];
+
+    // belum punya aktivitas di chain mana pun
+    if (!chainsArray.length) {
+      return res.status(200).json({
+        address,
+        totalUsd: 0,
+        activeChains: 0,
+        rank: "Shrimp",
+        chains: []
+      });
+    }
+
+    const limitedChains = chainsArray.slice(0, MAX_CHAINS);
+
+    // 2) Ambil balance per chain paralel
+    let totalUsd = 0;
+    const chainBalances = [];
+
+    await Promise.all(
+      limitedChains.map(async (chainInfo) => {
+        const chainId = chainInfo.id; // ex: "eth", "bsc", "arb"
+        if (!chainId) return;
+
+        const url =
+          `${CHAIN_BALANCE_ENDPOINT}?` +
+          `id=${encodeURIComponent(address)}&chain_id=${encodeURIComponent(
+            chainId
+          )}`;
+
+        try {
+          const balResp = await fetch(url, {
+            headers: {
+              accept: "application/json",
+              AccessKey: accessKey
+            }
+          });
+
+          if (!balResp.ok) {
+            const errText = await balResp.text().catch(() => "");
+            console.error(
+              "DeBank chain_balance error",
+              chainId,
+              balResp.status,
+              errText
+            );
+            return;
+          }
+
+          const balJson = await balResp.json();
+          const usd =
+            typeof balJson.usd_value === "number" ? balJson.usd_value : 0;
+
+          if (usd > 0) {
+            totalUsd += usd;
+          }
+
+          chainBalances.push({
+            id: chainId,
+            name: chainInfo.name || chainId,
+            usd: Math.round(usd)
+          });
+        } catch (err) {
+          console.error("DeBank chain_balance request failed", chainId, err);
+        }
+      })
+    );
+
+    // urutkan chain dari terbesar
+    chainBalances.sort((a, b) => (b.usd || 0) - (a.usd || 0));
+
+    const rank = computeRank(totalUsd);
+
+    return res.status(200).json({
+      address,
+      totalUsd: Math.round(totalUsd),
+      activeChains: chainBalances.filter((c) => c.usd > 0).length,
+      rank,
+      chains: chainBalances
+    });
+  } catch (e) {
+    console.error("DeBank scan error", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 };
