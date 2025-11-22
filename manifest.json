@@ -1,11 +1,11 @@
 {
   "name": "EVM Volume Tracker",
   "version": "next",
-  "iconUrl": "https://cdn-icons-png.flaticon.com/512/2916/2916315.png",
-  "homeUrl": "https://evm-tracker-6pfo8jd23-angles-projects.vercel.app/",
+  "iconUrl": "https://evm-tracker-mauve.vercel.app/icon.png",
+  "homeUrl": "https://evm-tracker-mauve.vercel.app/",
   "imageUrl": "https://placehold.co/600x400/855DCD/ffffff?text=EVM+Tracker",
   "description": "Check transaction volume across EVM chains instantly.",
-  "webhookUrl": "https://GANTI-DENGAN-URL-VERCEL-KAMU.vercel.app/api/webhook",
+  "webhookUrl": "https://evm-tracker-mauve.vercel.app/api/webhook",
   "frames": {
     "version": "1",
     "imageUrl": "https://placehold.co/600x400/855DCD/ffffff?text=Start+Scan",
