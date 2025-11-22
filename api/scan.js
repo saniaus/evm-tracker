@@ -1,7 +1,6 @@
-// api/scan.js – DeBank Cloud API v2
-// Works with AccessKey: 95e7a1fd...
+// api/scan.js – FIXED for DeBank Cloud API (correct domain)
 
-const BASE = "https://api.cloud.debank.com";
+const BASE = "https://cloud.debank.com";
 
 async function fetchJSON(url, key) {
   const resp = await fetch(url, {
@@ -10,9 +9,10 @@ async function fetchJSON(url, key) {
       accept: "application/json"
     }
   });
+
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`HTTP ${resp.status} → ${text}`);
+    throw new Error(`HTTP ${resp.status}: ${text}`);
   }
   return resp.json();
 }
@@ -31,29 +31,29 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // 1. Total balance
+    // GET total USD balance
     const total = await fetchJSON(
       `${BASE}/user/total_balance?id=${address}`,
       key
     );
 
-    // 2. List chain balance
+    // GET multi-chain balances
     const chains = await fetchJSON(
       `${BASE}/user/chain_balance_list?id=${address}`,
       key
     );
 
+    const usd = total.data?.usd_value || 0;
     const list = chains.data || [];
     const active = list.filter((c) => c.usd_value > 0);
 
-    // ranking
-    const usd = total.data?.usd_value || 0;
+    // Ranking
     let rank = "Shrimp";
     if (usd > 5_000_000) rank = "Blue Whale";
     else if (usd > 1_000_000) rank = "Whale";
     else if (usd > 200_000) rank = "Shark";
     else if (usd > 25_000) rank = "Dolphin";
-    else if (usd > 2500) rank = "Fish";
+    else if (usd > 2_500) rank = "Fish";
 
     return res.status(200).json({
       address,
